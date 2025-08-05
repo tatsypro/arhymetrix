@@ -10,6 +10,17 @@ def log_user_action(user_id, username, action, data):
         writer = csv.writer(f)
         writer.writerow([datetime.now().isoformat(), user_id, username, action, data])
 
+# Функция для подсчета количества пробных анализов по user_id
+def get_trial_count(user_id):
+    try:
+        with open("user_log.csv", "r", encoding="utf-8") as f:
+            return sum(
+                int(row[1]) == int(user_id) and "Пробный анализ — ссылка" in row[3]
+                for row in csv.reader(f)
+            )
+    except FileNotFoundError:
+        return 0
+
 from dotenv import load_dotenv
 
 load_dotenv()

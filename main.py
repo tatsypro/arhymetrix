@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+TGSTAT_TOKEN = os.getenv("TGSTAT_TOKEN")
 
 # Клавиатуры
 start_keyboard = ReplyKeyboardMarkup([["Предоставить свои данные"]], resize_keyboard=True, one_time_keyboard=True)

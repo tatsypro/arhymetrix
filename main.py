@@ -51,8 +51,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Выберите действие:", reply_markup=menu_keyboard)
 
     elif text == "Пробный анализ":
+        max_trials = 5
+        used_trials = get_trial_count(user_id)
+        left = max_trials - used_trials
         await update.message.reply_text(
-            "У вас осталось [5] из 5 пробных анализов.\n\nСкопируйте адрес канала в строку сообщения и нажмите «Отправить»."
+            f"У вас осталось [{left}] из {max_trials} пробных анализов.\n\nСкопируйте адрес канала в строку сообщения и нажмите «Отправить»."
         )
         log_user_action(user_id, username, "Пробный анализ", "")
 

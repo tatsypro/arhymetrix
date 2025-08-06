@@ -3,6 +3,7 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 import os
 import requests
 import json
+import re
 
 with open("Arhy_prompt_main.txt", encoding="utf-8") as f:
     BASE_PROMPT = f.read()
@@ -151,7 +152,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         log_user_action(user_id, username, "Подписка на месяц", "")
 
-    elif text.startswith("https://t.me/"):
+    elif re.search(r"(https?://)?t\.me/[A-Za-z0-9_]+", text):
         print(f"Пробный анализ для пользователя ID={user_id}, username={username}, ссылка={text}")
         log_user_action(user_id, username, "Пробный анализ — ссылка", text)
         await update.message.reply_text("🟢 Принято! Ваш запрос на пробный анализ принят. Выполняется анализ…")

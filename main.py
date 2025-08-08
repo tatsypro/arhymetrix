@@ -33,6 +33,7 @@ def collect_tgstat_data(channel_link):
     Собирает все необходимые данные TGStat для промпта.
     """
     channel = channel_link.replace("https://t.me/", "").strip("/")
+    print("TGStat channelId:", channel)
     base_url = "https://api.tgstat.ru"
     token = TGSTAT_TOKEN
 
@@ -87,6 +88,7 @@ def collect_tgstat_data(channel_link):
     # 10. channels/adposts (реклама)
     data["adposts"] = get("channels/adposts", limit=5)
 
+    print("TGStat ответ:", json.dumps(data, ensure_ascii=False, indent=2))
     return data
 
 from dotenv import load_dotenv
@@ -100,9 +102,10 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 import openai
 
 def ask_chatgpt(prompt, tgstat_json):
-    openai.api_key = OPENAI_API_KEY
+    import openai
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
     full_prompt = BASE_PROMPT + "\n\nДанные TGStat по каналу:\n" + tgstat_json
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": "Ты — эксперт по анализу Telegram-каналов."},
@@ -113,9 +116,48 @@ def ask_chatgpt(prompt, tgstat_json):
     )
     return response.choices[0].message.content.strip()
 
+def format_gpt_reply(gpt_json_str):
+    try:
+        data = json.loads(gpt_json_str)
+        color = data.get("traffic_light", {}).get("color", "")
+        color_emoji = {
+            "green": "🟢",
+            "yellow": "🟡",
+            "red": "🔴"
+        }.get(color, "⚪️")
+        color_text = {
+            "green": "Зелёный (можно давать рекламу)",
+            "yellow": "Жёлтый (возможна реклама, нужен дополнительный анализ)",
+            "red": "Красный (реклама не рекомендуется)"
+        }.get(color, f"({color})")
+        rec = data.get("traffic_light", {}).get("recommendation", "")
+
+        fakes = data.get("fakes_estimate", {})
+        fake_pct = fakes.get("fake_probability_percent")
+        real_pct = fakes.get("real_users_percent")
+        explanation = fakes.get("explanation", "")
+
+        recommendations = data.get("short_recommendations", [])
+        if isinstance(recommendations, list):
+            recs_text = "\n".join(f"— {x}" for x in recommendations if x)
+        else:
+            recs_text = ""
+
+        out = f"{color_emoji} Светофор: {color_text}\n"
+        if fake_pct is not None and real_pct is not None:
+            out += f"Вероятность накрутки: {fake_pct}%\nПримерно {real_pct}% реальных пользователей\n"
+        if explanation:
+            out += f"{explanation}\n"
+        if recs_text:
+            out += "\nОсновные метрики, по которым сделаны выводы:\n" + recs_text
+        return out.strip()
+    except Exception as e:
+        return f"Ошибка форматирования ответа: {e}\n{gpt_json_str}"
+
 # Клавиатуры
 start_keyboard = ReplyKeyboardMarkup([["Предоставить свои данные"]], resize_keyboard=True, one_time_keyboard=True)
 menu_keyboard = ReplyKeyboardMarkup([["Пробный анализ"], ["Подписка на месяц"]], resize_keyboard=True)
+back_keyboard = ReplyKeyboardMarkup([["Назад"]], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -142,7 +184,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         used_trials = get_trial_count(user_id)
         left = max_trials - used_trials
         await update.message.reply_text(
-            f"У вас осталось [{left}] из {max_trials} пробных анализов.\n\nСкопируйте адрес канала в строку сообщения и нажмите «Отправить»."
+            f"У вас осталось [{left}] из {max_trials} пробных анализов.\n\nСкопируйте адрес канала в строку сообщения и нажмите «Отправить».",
+            reply_markup=back_keyboard
         )
         log_user_action(user_id, username, "Пробный анализ", "")
 
@@ -151,6 +194,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "💳 Для оформления подписки напишите /subscribe или воспользуйтесь меню (раздел в разработке)."
         )
         log_user_action(user_id, username, "Подписка на месяц", "")
+
+    elif text == "Назад":
+        await update.message.reply_text("Выберите действие:", reply_markup=menu_keyboard)
 
     elif re.search(r"(https?://)?t\.me/[A-Za-z0-9_]+", text):
         print(f"Пробный анализ для пользователя ID={user_id}, username={username}, ссылка={text}")
@@ -161,7 +207,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tgstat_data = collect_tgstat_data(text)
             tgstat_json = json.dumps(tgstat_data, ensure_ascii=False, indent=2)
             gpt_reply = ask_chatgpt(BASE_PROMPT, tgstat_json)
-            await update.message.reply_text(gpt_reply)
+            formatted_reply = format_gpt_reply(gpt_reply)
+            await update.message.reply_text(formatted_reply)
+            await update.message.reply_text("Выберите действие:", reply_markup=menu_keyboard)
         except Exception as e:
             await update.message.reply_text(f"Ошибка при анализе через TGStat/ChatGPT: {e}")
     else:

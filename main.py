@@ -1,9 +1,12 @@
+# File: main.py — основной бот Архиметрикс (логика Telegram-бота)
+
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import os
 import requests
 import json
 import re
+from bot.services.parser_adapter import fetch_channel_summary
 
 with open("Arhy_prompt_main.txt", encoding="utf-8") as f:
     BASE_PROMPT = f.read()
@@ -101,10 +104,13 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # OpenAI integration
 import openai
 
-def ask_chatgpt(prompt, tgstat_json):
-    import openai
+def ask_chatgpt(analysis_json: str):
+    """
+    Отправляет единый промпт: BASE_PROMPT + объединённые данные канала
+    (parser_core + tgstat), переданные строкой JSON.
+    """
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
-    full_prompt = BASE_PROMPT + "\n\nДанные TGStat по каналу:\n" + tgstat_json
+    full_prompt = BASE_PROMPT + "\n\nДанные канала (parser_core + TGStat, если доступен):\n" + analysis_json
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -175,7 +181,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if already_verified:
         await update.message.reply_text(
-            "Добро пожаловать!\nВы уже верифицированы. Выберите действие:",
+            "Рад снова вас видеть!\nВыберите действие:",
             reply_markup=menu_keyboard
         )
     else:
@@ -237,14 +243,32 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("🟢 Принято! Ваш запрос на пробный анализ принят. Выполняется анализ…")
 
         try:
-            tgstat_data = collect_tgstat_data(text)
-            tgstat_json = json.dumps(tgstat_data, ensure_ascii=False, indent=2)
-            gpt_reply = ask_chatgpt(BASE_PROMPT, tgstat_json)
+            # 1) Сбор из parser_core (ядро на Telegram API)
+            parser_data = fetch_channel_summary(text)
+
+            # 2) TGStat как дополнительный источник (если токен задан)
+            tgstat_data = {}
+            if TGSTAT_TOKEN:
+                try:
+                    tgstat_data = collect_tgstat_data(text)
+                except Exception as e:
+                    tgstat_data = {"error": f"TGStat failed: {e}"}
+            else:
+                tgstat_data = {"skipped": "TGSTAT_TOKEN not set"}
+
+            # 3) Объединяем и отправляем в ИИ
+            analysis_payload = {
+                "parser_core": parser_data,
+                "tgstat": tgstat_data,
+            }
+            analysis_json = json.dumps(analysis_payload, ensure_ascii=False, indent=2)
+
+            gpt_reply = ask_chatgpt(analysis_json)
             formatted_reply = format_gpt_reply(gpt_reply)
             await update.message.reply_text(formatted_reply)
             await update.message.reply_text("Выберите действие:", reply_markup=menu_keyboard)
         except Exception as e:
-            await update.message.reply_text(f"Ошибка при анализе через TGStat/ChatGPT: {e}")
+            await update.message.reply_text(f"Ошибка при анализе: {e}")
     else:
         await update.message.reply_text("Не понимаю. Пожалуйста, используйте кнопки.")
 

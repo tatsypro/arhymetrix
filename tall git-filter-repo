@@ -1,0 +1,23 @@
+[33mcommit d658c1c434a87333525d572eb9a4f950b2ffd8f3[m[33m ([m[mrefs/original/refs/heads/main[m[33m)[m
+Author: Alex Tatsy <ai@tatsy.pro>
+Date:   Fri Aug 8 17:23:49 2025 +0300
+
+    Stop tracking .env file
+
+[33mcommit 10e7a27d1455629932f08efa3cf324e9a08fada8[m
+Author: Alex Tatsy <ai@tatsy.pro>
+Date:   Tue Aug 5 16:57:16 2025 +0300
+
+    Open AI Token
+
+[33mcommit fd0e395a95e159ee149f2a1ebba34023430763e0[m[33m ([m[mrefs/original/refs/remotes/origin/main[m[33m)[m
+Author: Alex Tatsy <ai@tatsy.pro>
+Date:   Tue Aug 5 16:20:39 2025 +0300
+
+    token tgstat
+
+[33mcommit 91073d2cb22af853932ecb01e28e79f1a6e9b356[m
+Author: Alex Tatsy <ai@tatsy.pro>
+Date:   Tue Aug 5 15:13:20 2025 +0300
+
+    SCV add

@@ -160,17 +160,48 @@ menu_keyboard = ReplyKeyboardMarkup([["Пробный анализ"], ["Подп
 back_keyboard = ReplyKeyboardMarkup([["Назад"]], resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Добро пожаловать в Архиметрикс — умный ИИ-анализатор Telegram-каналов. Для начала работы подтвердите личность.\n\nНажмите кнопку ниже для подтверждения.",
-        reply_markup=start_keyboard
-    )
+    user_id = update.message.from_user.id
+    print("user_id для проверки верификации:", user_id)
+    already_verified = False
+    try:
+        with open("user_log.csv", "r", encoding="utf-8") as f:
+            for row in csv.reader(f):
+                print("Проверяем строку:", row)
+                if int(row[1]) == int(user_id) and "Верификация" in row[3]:
+                    already_verified = True
+                    break
+    except FileNotFoundError:
+        pass
+
+    if already_verified:
+        await update.message.reply_text(
+            "Добро пожаловать!\nВы уже верифицированы. Выберите действие:",
+            reply_markup=menu_keyboard
+        )
+    else:
+        await update.message.reply_text(
+            "Добро пожаловать в Архиметрикс — умный ИИ-анализатор Telegram-каналов. Для начала работы подтвердите личность.\n\nНажмите кнопку ниже для подтверждения.",
+            reply_markup=start_keyboard
+        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     user_id = update.message.from_user.id
     username = update.message.from_user.username
 
-    if text == "Предоставить свои данные":
+    # Проверяем, был ли пользователь уже верифицирован
+    already_verified = False
+    try:
+        with open("user_log.csv", "r", encoding="utf-8") as f:
+            for row in csv.reader(f):
+                print("Проверяем строку:", row)
+                if int(row[1]) == int(user_id) and "Верификация" in row[3]:
+                    already_verified = True
+                    break
+    except FileNotFoundError:
+        pass
+
+    if text == "Предоставить свои данные" and not already_verified:
         print(f"Верифицирован пользователь: ID={user_id}, username={username}")
         log_user_action(user_id, username, "Верификация", "")
         await update.message.reply_text(
@@ -178,6 +209,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=ReplyKeyboardRemove()
         )
         await update.message.reply_text("Выберите действие:", reply_markup=menu_keyboard)
+    elif text == "Предоставить свои данные" and already_verified:
+        await update.message.reply_text("Вы уже верифицированы!\n\nВыберите действие:", reply_markup=menu_keyboard)
 
     elif text == "Пробный анализ":
         max_trials = 5
